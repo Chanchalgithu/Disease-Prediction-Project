@@ -1,107 +1,119 @@
-from flask import Flask, render_template, request
+from flask import Flask, render_template, request, send_file
+import os
 import joblib
 import pandas as pd
 import json
-import os
+import traceback
 
 # ==========================================================
-# Paths (relative for Render or any server, not local drive)
+# Paths (Work for Local + Render)
 # ==========================================================
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))  # src/
+PROJECT_ROOT = os.path.dirname(BASE_DIR)  # DISEASE_PREDICTION/
 
-MODEL_PATH = os.path.join(BASE_DIR, "models", "disease_model.pkl")
-FEATURES_PATH = os.path.join(BASE_DIR, "data", "processed", "feature_columns.json")
-LABEL_MAP_PATH = os.path.join(BASE_DIR, "data", "processed", "label_mapping.json")
-PREDICTIONS_CSV = os.path.join(BASE_DIR, "predictions.csv")
-
-# ==========================================================
-# Load Trained Model and Metadata
-# ==========================================================
-model = joblib.load(MODEL_PATH)
-
-with open(FEATURES_PATH, "r") as f:
-    FEATURES = json.load(f)
-
-with open(LABEL_MAP_PATH, "r") as f:
-    LABEL_MAPPING = json.load(f)
+MODEL_PATH = os.path.join(PROJECT_ROOT, "models", "disease_model.pkl")
+FEATURES_PATH = os.path.join(PROJECT_ROOT, "data", "processed", "feature_columns.json")
+LABEL_MAP_PATH = os.path.join(PROJECT_ROOT, "data", "processed", "label_mapping.json")
+PREDICTIONS_CSV = os.path.join(PROJECT_ROOT, "predictions.csv")
 
 # ==========================================================
-# Initialize Flask Application
+# Initialize Flask App (templates + static from project root)
 # ==========================================================
-app = Flask(__name__, template_folder="templates", static_folder="static")
+TEMPLATE_DIR = os.path.join(PROJECT_ROOT, "templates")
+STATIC_DIR = os.path.join(PROJECT_ROOT, "static")
+
+app = Flask(__name__, template_folder=TEMPLATE_DIR, static_folder=STATIC_DIR)
 
 # ==========================================================
-# Home Page Route
+# Load Model + Metadata
 # ==========================================================
+try:
+    model = joblib.load(MODEL_PATH)
+    print("✅ Model loaded successfully")
+
+    with open(FEATURES_PATH, "r") as f:
+        FEATURES = json.load(f)
+    print("✅ Features loaded")
+
+    with open(LABEL_MAP_PATH, "r") as f:
+        LABEL_MAPPING = json.load(f)
+    print("✅ Label mapping loaded")
+
+except Exception as e:
+    print("❌ Error loading model/metadata:", e)
+    FEATURES, LABEL_MAPPING = [], {}
+
+# ==========================================================
+# Routes
+# ==========================================================
+
 @app.route("/")
-def index():
+def home():
     return render_template("index.html")
 
-# ==========================================================
-# Prediction Route
-# ==========================================================
 @app.route("/predict", methods=["POST"])
 def predict():
-    # ------------------------------
-    # Collect Form Inputs
-    # ------------------------------
-    name = request.form.get("name")
-    gender = request.form.get("gender")
-    age = request.form.get("age")
+    try:
+        # Patient info
+        name = request.form.get("name")
+        gender = request.form.get("gender")
+        age = request.form.get("age")
 
-    # ------------------------------
-    # Collect Symptoms from Form
-    # ------------------------------
-    symptoms = []
-    for i in range(1, 6):
-        symptom = request.form.get(f"symptom{i}")
-        if symptom:
-            symptoms.append(symptom)
+        # Symptoms
+        symptoms = []
+        for i in range(1, 6):
+            s = request.form.get(f"symptom{i}")
+            if s:
+                symptoms.append(s)
 
-    # ------------------------------
-    # Create Input Feature Vector
-    # ------------------------------
-    input_data = {feature: 0 for feature in FEATURES}
-    for s in symptoms:
-        if s in input_data:
-            input_data[s] = 1
+        # Create input vector
+        input_data = {feature: 0 for feature in FEATURES}
+        for s in symptoms:
+            if s in input_data:
+                input_data[s] = 1
 
-    df = pd.DataFrame([input_data])
+        df = pd.DataFrame([input_data])
 
-    # ------------------------------
-    # Predict Disease Safely
-    # ------------------------------
-    pred_class = model.predict(df)[0]
+        # Prediction
+        pred_class = model.predict(df)[0]
+        disease = LABEL_MAPPING.get(str(pred_class), str(pred_class))
 
-    # ------------------------------
-    # Map Prediction to Disease Name
-    # ------------------------------
-    disease = LABEL_MAPPING.get(str(pred_class), str(pred_class))
+        # Save locally (only in local, not Render)
+        if os.environ.get("RENDER") is None:  # Detect Render env
+            record = {
+                "Patient Name": name,
+                "Gender": gender,
+                "Age Group": age,
+                "Symptoms": ", ".join(symptoms),
+                "Predicted Disease": disease,
+            }
+            if not os.path.exists(PREDICTIONS_CSV):
+                pd.DataFrame([record]).to_csv(PREDICTIONS_CSV, index=False)
+            else:
+                pd.DataFrame([record]).to_csv(PREDICTIONS_CSV, mode="a", header=False, index=False)
 
-    # ------------------------------
-    # Save Prediction to CSV File
-    # ------------------------------
-    record = {
-        "Patient Name": name,
-        "Gender": gender,
-        "Age Group": age,
-        "Symptoms": ", ".join(symptoms),
-        "Predicted Disease": disease
-    }
+        return render_template("result.html", disease=disease)
 
-    if not os.path.exists(PREDICTIONS_CSV):
-        pd.DataFrame([record]).to_csv(PREDICTIONS_CSV, index=False)
-    else:
-        pd.DataFrame([record]).to_csv(PREDICTIONS_CSV, mode="a", header=False, index=False)
+    except Exception as e:
+        traceback.print_exc()
+        return f"Error in prediction: {e}", 500
 
-    # ------------------------------
-    # Render Result Page
-    # ------------------------------
-    return render_template("result.html", disease=disease)
+@app.route("/download", methods=["GET"])
+def download_predictions():
+    try:
+        if os.path.exists(PREDICTIONS_CSV):
+            return send_file(PREDICTIONS_CSV, as_attachment=True)
+        else:
+            return "⚠️ No prediction records found", 404
+    except Exception as e:
+        traceback.print_exc()
+        return f"Error generating download: {e}", 500
 
 # ==========================================================
-# Run Flask App with Render Port
+# Run App
 # ==========================================================
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
+    print(f"🚀 Starting Flask server on port {port}")
     app.run(host="0.0.0.0", port=port)
+
