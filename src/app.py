@@ -4,17 +4,19 @@ import pandas as pd
 import json
 import os
 
-# ------------------------------
-# Paths
-# ------------------------------
-MODEL_PATH = r"E:\Disease_Prediction\models\disease_model.pkl"
-FEATURES_PATH = r"E:\Disease_Prediction\data\processed\feature_columns.json"
-LABEL_MAP_PATH = r"E:\Disease_Prediction\data\processed\label_mapping.json"
-PREDICTIONS_CSV = r"E:\Disease_Prediction\predictions.csv"
+# ==========================================================
+# Paths (relative for Render or any server, not local drive)
+# ==========================================================
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-# ------------------------------
-# Load Model & Metadata
-# ------------------------------
+MODEL_PATH = os.path.join(BASE_DIR, "models", "disease_model.pkl")
+FEATURES_PATH = os.path.join(BASE_DIR, "data", "processed", "feature_columns.json")
+LABEL_MAP_PATH = os.path.join(BASE_DIR, "data", "processed", "label_mapping.json")
+PREDICTIONS_CSV = os.path.join(BASE_DIR, "predictions.csv")
+
+# ==========================================================
+# Load Trained Model and Metadata
+# ==========================================================
 model = joblib.load(MODEL_PATH)
 
 with open(FEATURES_PATH, "r") as f:
@@ -23,34 +25,42 @@ with open(FEATURES_PATH, "r") as f:
 with open(LABEL_MAP_PATH, "r") as f:
     LABEL_MAPPING = json.load(f)
 
-# ------------------------------
-# Flask App
-# ------------------------------
-app = Flask(
-    __name__,
-    template_folder=r"E:\Disease_Prediction\templates",
-    static_folder=r"E:\Disease_Prediction\static"
-)
+# ==========================================================
+# Initialize Flask Application
+# ==========================================================
+app = Flask(__name__, template_folder="templates", static_folder="static")
 
+# ==========================================================
+# Home Page Route
+# ==========================================================
 @app.route("/")
 def index():
     return render_template("index.html")
 
+# ==========================================================
+# Prediction Route
+# ==========================================================
 @app.route("/predict", methods=["POST"])
 def predict():
-    # Collect form inputs
+    # ------------------------------
+    # Collect Form Inputs
+    # ------------------------------
     name = request.form.get("name")
     gender = request.form.get("gender")
     age = request.form.get("age")
 
-    # Collect symptoms (symptom1–symptom5)
+    # ------------------------------
+    # Collect Symptoms from Form
+    # ------------------------------
     symptoms = []
     for i in range(1, 6):
         symptom = request.form.get(f"symptom{i}")
         if symptom:
             symptoms.append(symptom)
 
-    # Create input vector
+    # ------------------------------
+    # Create Input Feature Vector
+    # ------------------------------
     input_data = {feature: 0 for feature in FEATURES}
     for s in symptoms:
         if s in input_data:
@@ -59,15 +69,17 @@ def predict():
     df = pd.DataFrame([input_data])
 
     # ------------------------------
-    # Predict Disease safely
+    # Predict Disease Safely
     # ------------------------------
     pred_class = model.predict(df)[0]
 
-    # Use LABEL_MAPPING if numeric, else fallback to pred_class itself
+    # ------------------------------
+    # Map Prediction to Disease Name
+    # ------------------------------
     disease = LABEL_MAPPING.get(str(pred_class), str(pred_class))
 
     # ------------------------------
-    # Save Prediction to CSV
+    # Save Prediction to CSV File
     # ------------------------------
     record = {
         "Patient Name": name,
@@ -87,6 +99,9 @@ def predict():
     # ------------------------------
     return render_template("result.html", disease=disease)
 
+# ==========================================================
+# Run Flask App with Render Port
+# ==========================================================
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
