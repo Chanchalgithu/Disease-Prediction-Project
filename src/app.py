@@ -7,7 +7,7 @@ import os
 # ==========================================================
 # Paths (relative for Render or any server, not local drive)
 # ==========================================================
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 MODEL_PATH = os.path.join(BASE_DIR, "models", "disease_model.pkl")
 FEATURES_PATH = os.path.join(BASE_DIR, "data", "processed", "feature_columns.json")
