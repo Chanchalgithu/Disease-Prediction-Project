@@ -117,3 +117,7 @@ if __name__ == "__main__":
     print(f"🚀 Starting Flask server on port {port}")
     app.run(host="0.0.0.0", port=port)
 
+<<<<<<< HEAD
+=======
+
+>>>>>>> 951f9e7b5c9eb74c10e9a0e54834501522edb317
