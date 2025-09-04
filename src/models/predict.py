@@ -4,12 +4,15 @@ import json
 import os
 
 # ------------------------------
-# Paths (updated with your full paths)
+# Paths (Work for Local + Render)
 # ------------------------------
-MODEL_PATH = r"E:\Disease_Prediction\models\disease_model.pkl"
-FEATURES_PATH = r"E:\Disease_Prediction\data\processed\feature_columns.json"
-LABEL_MAP_PATH = r"E:\Disease_Prediction\data\processed\label_mapping.json"
-PREDICTIONS_CSV = r"E:\Disease_Prediction\predictions.csv"
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))  # src/
+PROJECT_ROOT = os.path.dirname(BASE_DIR)  # DISEASE_PREDICTION/
+
+MODEL_PATH = os.path.join(PROJECT_ROOT, "models", "disease_model.pkl")
+FEATURES_PATH = os.path.join(PROJECT_ROOT, "data", "processed", "feature_columns.json")
+LABEL_MAP_PATH = os.path.join(PROJECT_ROOT, "data", "processed", "label_mapping.json")
+PREDICTIONS_CSV = os.path.join(PROJECT_ROOT, "predictions.csv")
 
 # ------------------------------
 # Load Model & Metadata
@@ -23,14 +26,16 @@ with open(LABEL_MAP_PATH, "r") as f:
     LABEL_MAPPING = json.load(f)
 
 # ------------------------------
-# Test Input
+# Test Input (example)
 # ------------------------------
 name = "Test Patient"
 gender = "Male"
 age = "21-30"
 symptoms = ["fatigue", "nausea", "yellowing_of_eyes"]
 
+# ------------------------------
 # Create input vector
+# ------------------------------
 input_data = {feature: 0 for feature in FEATURES}
 for s in symptoms:
     if s in input_data:
@@ -38,10 +43,10 @@ for s in symptoms:
 
 df = pd.DataFrame([input_data])
 pred_class = model.predict(df)[0]
-disease = LABEL_MAPPING[str(pred_class)]
+disease = LABEL_MAPPING.get(str(pred_class), str(pred_class))
 
 # ------------------------------
-# Save to CSV
+# Save to CSV (works locally)
 # ------------------------------
 record = {
     "Patient Name": name,
@@ -56,7 +61,11 @@ if not os.path.exists(PREDICTIONS_CSV):
 else:
     pd.DataFrame([record]).to_csv(PREDICTIONS_CSV, mode="a", header=False, index=False)
 
+# ------------------------------
+# Output
+# ------------------------------
 print("🧾 Symptoms:", symptoms)
 print("✅ Predicted Disease:", disease)
 print(f"📂 Saved in {PREDICTIONS_CSV}")
+
 
