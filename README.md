@@ -229,6 +229,6 @@ For questions and support:
 
 **Built with ❤️ for better healthcare accessibility**
 
-[Live Demo](https://your-app.render.com) • [Documentation](docs/) • [Report Bug](https://github.com/Chanchalgithu/Disease-Prediction-Projec/issues)
+[Live Demo](https://disease-prediction-mho6.onrender.com) • [Documentation](docs/) • [Report Bug](https://github.com/Chanchalgithu/Disease-Prediction-Projec/issues)
 
 </div>
